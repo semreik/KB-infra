@@ -1,0 +1,88 @@
+sources:
+  # Gmail connector
+  gmail:
+    type: gmail
+    config:
+      client_id: ${GMAIL_CLIENT_ID}
+      client_secret: ${GMAIL_CLIENT_SECRET}
+      refresh_token: ${GMAIL_REFRESH_TOKEN}
+      user_email: ${GMAIL_USER_EMAIL}
+      label_filter: "kb-relevant"  # Only sync emails with this label
+
+  # Outlook connector  
+  outlook:
+    type: microsoft_graph
+    config:
+      client_id: ${OUTLOOK_CLIENT_ID}
+      client_secret: ${OUTLOOK_CLIENT_SECRET}
+      tenant_id: ${OUTLOOK_TENANT_ID}
+      folder_filter: "Inbox"  # Only sync from Inbox
+
+  # Google Drive connector
+  gdrive:
+    type: google_drive
+    config:
+      client_id: ${GDRIVE_CLIENT_ID}
+      client_secret: ${GDRIVE_CLIENT_SECRET}
+      refresh_token: ${GDRIVE_REFRESH_TOKEN}
+      folder_id: ${GDRIVE_FOLDER_ID}  # Root folder to sync
+
+  # OneDrive connector
+  onedrive:
+    type: microsoft_graph
+    config:
+      client_id: ${ONEDRIVE_CLIENT_ID}
+      client_secret: ${ONEDRIVE_CLIENT_SECRET}
+      tenant_id: ${ONEDRIVE_TENANT_ID}
+      drive_id: ${ONEDRIVE_DRIVE_ID}
+
+  # Finance DB connector
+  finance_db:
+    type: postgres
+    config:
+      host: ${FINANCE_DB_HOST}
+      port: ${FINANCE_DB_PORT}
+      database: ${FINANCE_DB_NAME}
+      user: ${FINANCE_DB_USER}
+      password: ${FINANCE_DB_PASSWORD}
+      ssl_mode: require
+      tables:
+        - name: purchase_orders
+          query: "SELECT * FROM purchase_orders WHERE updated_at > :last_sync"
+        - name: suppliers
+          query: "SELECT * FROM suppliers"
+
+  # SAP connector (custom)
+  sap:
+    type: custom
+    module: sources.sap_source
+    class: SAPSource
+    config:
+      base_url: ${SAP_API_URL}
+      client_id: ${SAP_CLIENT_ID}
+      client_secret: ${SAP_CLIENT_SECRET}
+      service_path: "/sap/opu/odata/sap/ZKB_PO_SRV"
+
+  # News webhook (custom)
+  news:
+    type: custom
+    module: sources.news_webhook
+    class: NewsWebhookSource
+    config:
+      port: 8000
+      endpoint: "/webhook/news"
+      api_key: ${NEWS_WEBHOOK_API_KEY}
+
+vector_store:
+  engine: qdrant
+  config:
+    url: http://localhost:6333
+    collection_name: kb_vectors
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  cors_origins: ["*"]
+  auth:
+    type: api_key
+    api_key: ${AIRWEAVE_CLOUD_TOKEN}

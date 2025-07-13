@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      qdrant:
+        image: qdrant/qdrant
+        ports:
+          - 6333:6333
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+        
+    - name: Run tests
+      run: |
+        pytest --cov=./ --cov-report=xml
+        
+    - name: Run Airweave smoke test
+      env:
+        AIRWEAVE_CLOUD_TOKEN: ${{ secrets.AIRWEAVE_CLOUD_TOKEN }}
+      run: |
+        python -c "
+        from airweave import Client
+        import os
+        
+        # Initialize client
+        client = Client(os.getenv('AIRWEAVE_CLOUD_TOKEN'))
+        
+        # Create test collection
+        client.create_collection('test')
+        
+        # Add test document
+        client.add_document(
+            collection='test',
+            content='Hello World',
+            metadata={'type': 'test'}
+        )
+        
+        # Search and verify
+        results = client.search(
+            collection='test',
+            query='hello world',
+            limit=1
+        )
+        assert len(results) == 1
+        assert 'Hello World' in results[0].content
+        
+        # Cleanup
+        client.delete_collection('test')
+        "
