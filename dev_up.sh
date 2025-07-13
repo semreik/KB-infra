@@ -1,6 +1,32 @@
 #!/bin/bash
 set -e
 
+# Check Python version
+if ! command -v python3.11 &> /dev/null; then
+    echo "Error: Python 3.11 is required but not found"
+    exit 1
+fi
+
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3.11 -m venv venv
+fi
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Install dependencies
+echo "Installing dependencies..."
+pip install -r requirements.txt
+
+# Create .env if it doesn't exist
+if [ ! -f ".env" ]; then
+    echo "Creating .env from example..."
+    cp .env.example .env
+    echo "Please update .env with your credentials"
+fi
+
 # Clone Airweave if not exists
 if [ ! -d "airweave" ]; then
     echo "Cloning Airweave..."
@@ -13,7 +39,7 @@ if [ ! -d "airweave" ]; then
 fi
 
 # Start the stack
-cd airweave
+echo "Starting Docker services..."
 docker-compose up -d
 
 # Health check function
@@ -41,4 +67,8 @@ check_health() {
 check_health "Airweave API" 8080
 check_health "Vector Store" 6333
 
-echo "All services are up and healthy!"
+echo "✨ Development environment is ready!"
+echo "📝 Next steps:"
+echo "  1. Update .env with your credentials"
+echo "  2. Access Airweave at http://localhost:8080"
+echo "  3. Access Qdrant dashboard at http://localhost:6333/dashboard"
