@@ -58,24 +58,56 @@ def test_smoke_gdrive(gdrive_config, mock_gdrive_list, mock_gdrive_content):
         mock_list = Mock()
         mock_list.execute.return_value = {
             'files': [
-                {'id': 'file1', 'name': 'Test Doc 1.docx', 'mimeType': 'application/vnd.google-apps.document'},
-                {'id': 'file2', 'name': 'Test Doc 2.docx', 'mimeType': 'application/vnd.google-apps.document'}
+                {
+                    'id': 'doc1',
+                    'name': 'Test Document.gdoc',
+                    'mimeType': 'application/vnd.google-apps.document',
+                    'modifiedTime': '2023-07-14T10:00:00Z'
+                },
+                {
+                    'id': 'file1', 
+                    'name': 'Test File.txt',
+                    'mimeType': 'text/plain',
+                    'modifiedTime': '2023-07-14T11:00:00Z'
+                }
             ]
         }
         mock_files.list.return_value = mock_list
         
-        # Mock get method
+        # Mock get method for Google Doc
+        mock_get_doc = Mock()
+        mock_get_doc.execute.return_value = {
+            'id': 'doc1',
+            'name': 'Test Document.gdoc',
+            'mimeType': 'application/vnd.google-apps.document',
+            'modifiedTime': '2023-07-14T10:00:00Z'
+        }
+        
+        # Mock get method for regular file
         mock_get_file = Mock()
         mock_get_file.execute.return_value = {
             'id': 'file1',
-            'name': 'Test Doc 1.docx',
-            'mimeType': 'application/vnd.google-apps.document'
+            'name': 'Test File.txt',
+            'mimeType': 'text/plain',
+            'modifiedTime': '2023-07-14T11:00:00Z'
         }
-        mock_files.get.return_value = mock_get_file
         
-        # Mock get_media method
+        # Configure get method to return different responses based on file ID
+        def mock_get(**kwargs):
+            file_id = kwargs.get('fileId')
+            if file_id == 'doc1':
+                return mock_get_doc
+            return mock_get_file
+        mock_files.get.side_effect = mock_get
+        
+        # Mock export method for Google Doc
+        mock_export = Mock()
+        mock_export.execute.return_value = b'Test document content'
+        mock_files.export.return_value = mock_export
+        
+        # Mock get_media method for regular file
         mock_get_media = Mock()
-        mock_get_media.execute.return_value = b'Test document content'
+        mock_get_media.execute.return_value = b'Test file content'
         mock_files.get_media.return_value = mock_get_media
 
         from sources.gdrive_source import GDriveSource
@@ -84,13 +116,25 @@ def test_smoke_gdrive(gdrive_config, mock_gdrive_list, mock_gdrive_content):
         # Should list files
         files = list(source.list_entities())
         assert len(files) == 2
-        assert files[0] == 'file1'
+        assert 'doc1' in files
+        assert 'file1' in files
         
-        # Should get file content
-        chunks = list(source.iter_content('file1'))
-        assert len(chunks) == 1
-        chunk = chunks[0]
-        assert 'Test document content' in chunk.content
-        assert chunk.metadata['source'] == 'gdrive'
-        assert chunk.metadata['id'] == 'file1'
-        assert chunk.metadata['name'] == 'Test Doc 1'
+        # Should get Google Doc content
+        doc_chunks = list(source.iter_content('doc1'))
+        assert len(doc_chunks) == 1
+        doc_chunk = doc_chunks[0]
+        assert 'Test document content' in doc_chunk.content
+        assert doc_chunk.metadata['source'] == 'gdrive'
+        assert doc_chunk.metadata['id'] == 'doc1'
+        assert doc_chunk.metadata['name'] == 'Test Document.gdoc'
+        assert doc_chunk.metadata['mime_type'] == 'application/vnd.google-apps.document'
+        
+        # Should get regular file content
+        file_chunks = list(source.iter_content('file1'))
+        assert len(file_chunks) == 1
+        file_chunk = file_chunks[0]
+        assert 'Test file content' in file_chunk.content
+        assert file_chunk.metadata['source'] == 'gdrive'
+        assert file_chunk.metadata['id'] == 'file1'
+        assert file_chunk.metadata['name'] == 'Test File.txt'
+        assert file_chunk.metadata['mime_type'] == 'text/plain'

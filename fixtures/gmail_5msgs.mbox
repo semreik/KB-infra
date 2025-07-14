@@ -1,0 +1,39 @@
+From test.supplier@acme.com Thu Jan 1 00:00:00 2024
+From: Test Supplier <test.supplier@acme.com>
+To: procurement@company.com
+Subject: RE: PO #12345 Confirmation
+Date: Thu, 1 Jan 2024 10:00:00 +0000
+
+Confirming receipt of PO #12345. Will deliver by Jan 15.
+
+From vendor@globex.com Thu Jan 1 12:00:00 2024
+From: Vendor Relations <vendor@globex.com>
+To: procurement@company.com
+Subject: Shipping Update - PO #12346
+Date: Thu, 1 Jan 2024 12:00:00 +0000
+
+Your order has shipped. Tracking: ABC123XYZ
+
+From support@supplier.com Thu Jan 2 09:00:00 2024
+From: Support Team <support@supplier.com>
+To: procurement@company.com
+Subject: Invoice #INV-001 for PO #12347
+Date: Thu, 2 Jan 2024 09:00:00 +0000
+
+Please find attached invoice for PO #12347.
+
+From billing@megacorp.com Thu Jan 2 14:00:00 2024
+From: Billing Department <billing@megacorp.com>
+To: procurement@company.com
+Subject: Payment Received for INV-002
+Date: Thu, 2 Jan 2024 14:00:00 +0000
+
+Confirming receipt of payment for Invoice #INV-002.
+
+From logistics@acme.com Thu Jan 3 11:00:00 2024
+From: Logistics <logistics@acme.com>
+To: procurement@company.com
+Subject: Delivery Schedule - Week 1
+Date: Thu, 3 Jan 2024 11:00:00 +0000
+
+Updated delivery schedule for Week 1 orders attached.

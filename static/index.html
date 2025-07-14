@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airweave Knowledge Base</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8">Airweave Knowledge Base</h1>
+        
+        <!-- Source Selection -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Content Sources</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Gmail Section -->
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">Gmail</h3>
+                    <button onclick="listEmails()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        List Emails
+                    </button>
+                </div>
+                
+                <!-- Google Drive Section -->
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-lg font-semibold mb-4">Google Drive</h3>
+                    <button onclick="listFiles()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                        List Files
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content List -->
+        <div id="contentList" class="mb-8 bg-white p-6 rounded-lg shadow hidden">
+            <h2 class="text-xl font-semibold mb-4">Available Content</h2>
+            <div id="contentItems" class="space-y-4"></div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">Semantic Search</h2>
+            <div class="space-y-4">
+                <input type="text" id="searchQuery" placeholder="Enter your search query..." 
+                       class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="flex space-x-4">
+                    <select id="sourceType" class="p-2 border rounded">
+                        <option value="">All Sources</option>
+                        <option value="gmail">Gmail Only</option>
+                        <option value="gdrive">Google Drive Only</option>
+                    </select>
+                    <button onclick="performSearch()" class="bg-indigo-500 text-white px-6 py-2 rounded hover:bg-indigo-600">
+                        Search
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Results -->
+        <div id="searchResults" class="bg-white p-6 rounded-lg shadow hidden">
+            <h2 class="text-xl font-semibold mb-4">Search Results</h2>
+            <div id="resultItems" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8080';
+
+        async function listEmails() {
+            try {
+                const response = await fetch(`${API_URL}/emails`);
+                const data = await response.json();
+                displayContent('gmail', data.messages);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to fetch emails');
+            }
+        }
+
+        async function listFiles() {
+            try {
+                const response = await fetch(`${API_URL}/drive`);
+                const data = await response.json();
+                displayContent('gdrive', data.files);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to fetch files');
+            }
+        }
+
+        function displayContent(type, items) {
+            const contentList = document.getElementById('contentList');
+            const contentItems = document.getElementById('contentItems');
+            contentItems.innerHTML = '';
+            
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-4 border rounded';
+                
+                const title = type === 'gmail' ? item.subject || 'No Subject' : item.name;
+                div.innerHTML = `
+                    <div>
+                        <h3 class="font-semibold">${title}</h3>
+                        <p class="text-sm text-gray-600">${item.id}</p>
+                    </div>
+                    <button onclick="indexContent('${type}', '${item.id}')" 
+                            class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                        Index
+                    </button>
+                `;
+                contentItems.appendChild(div);
+            });
+            
+            contentList.classList.remove('hidden');
+        }
+
+        async function indexContent(sourceType, entityId) {
+            try {
+                const response = await fetch(`${API_URL}/index`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        source_type: sourceType,
+                        entity_id: entityId
+                    })
+                });
+                
+                const data = await response.json();
+                alert(`Indexing started: ${data.chunk_count} chunks will be processed`);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to index content');
+            }
+        }
+
+        async function performSearch() {
+            const query = document.getElementById('searchQuery').value;
+            const sourceType = document.getElementById('sourceType').value;
+            
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        source_type: sourceType || null,
+                        limit: 5
+                    })
+                });
+                
+                const data = await response.json();
+                displayResults(data.results);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Search failed');
+            }
+        }
+
+        function displayResults(results) {
+            const searchResults = document.getElementById('searchResults');
+            const resultItems = document.getElementById('resultItems');
+            resultItems.innerHTML = '';
+            
+            results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = 'p-4 border rounded';
+                div.innerHTML = `
+                    <div class="mb-2">
+                        <span class="font-semibold">Score: </span>
+                        <span class="text-blue-600">${(result.score * 100).toFixed(1)}%</span>
+                    </div>
+                    <div class="mb-2 text-gray-800">${result.text}</div>
+                    <div class="text-sm text-gray-600">
+                        <strong>Source:</strong> ${result.metadata.source || 'Unknown'}
+                        ${result.metadata.subject ? `<br><strong>Subject:</strong> ${result.metadata.subject}` : ''}
+                        ${result.metadata.filename ? `<br><strong>File:</strong> ${result.metadata.filename}` : ''}
+                    </div>
+                `;
+                resultItems.appendChild(div);
+            });
+            
+            searchResults.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

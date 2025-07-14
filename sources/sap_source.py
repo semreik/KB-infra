@@ -3,8 +3,7 @@ import os
 import json
 from datetime import datetime, timedelta
 import requests
-from airweave.sources import BaseSource
-from airweave.types import TextChunk
+from .base_source import BaseSource, Chunk
 
 class SAPSource(BaseSource):
     """Custom source for SAP S/4HANA OData service.
@@ -134,12 +133,12 @@ Items:
         for po in response['d']['results']:
             yield po['PurchaseOrder']
 
-    def iter_content(self, entity: str) -> Iterator[TextChunk]:
+    def iter_content(self, entity: str) -> Iterator[Chunk]:
         """Yield purchase order items as TextChunks."""
         response = self._make_request(f'/PurchaseOrders({entity})')
         po_data = response['d']
         
-        yield TextChunk(
+        yield Chunk(
             content=self._format_po_as_text(po_data),
             metadata={
                 'source': 'sap_s4hana',

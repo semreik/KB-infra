@@ -84,5 +84,9 @@ api:
   port: 8080
   cors_origins: ["*"]
   auth:
+    type: basic_auth
+    username: ${AIRWEAVE_ADMIN_USER}
+    password: ${AIRWEAVE_ADMIN_PASS}
+  api_auth:
     type: api_key
     api_key: ${AIRWEAVE_CLOUD_TOKEN}

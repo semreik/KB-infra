@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'airweave-loader'
+    static_configs:
+      - targets: ['localhost:8000']
+    
+  - job_name: 'airweave-worker'
+    static_configs:
+      - targets: ['airweave-worker:8000']

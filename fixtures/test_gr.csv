@@ -1,0 +1,5 @@
+po_number,supplier_name,delivery_date,received_amount
+PO001,Acme Corporation,2024-01-14,1000.00
+PO002,ACME Corp.,2024-01-22,2000.00
+PO003,Globex Inc,2024-01-23,1500.00
+PO004,Globex Corporation,2024-02-01,3000.00

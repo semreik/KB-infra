@@ -1,0 +1,6 @@
+file_id,name,type,created_at,modified_at,size_bytes,shared_with
+doc1,Q4 Supplier Review.docx,document,2024-01-01T10:00:00Z,2024-01-02T15:30:00Z,15360,procurement@company.com
+doc2,Vendor Ratings.xlsx,spreadsheet,2024-01-02T09:15:00Z,2024-01-02T16:45:00Z,25600,finance@company.com
+doc3,Shipping Terms.pdf,pdf,2024-01-03T11:20:00Z,2024-01-03T11:20:00Z,102400,legal@company.com
+doc4,Contract Template.docx,document,2024-01-04T08:00:00Z,2024-01-04T14:20:00Z,30720,legal@company.com
+doc5,Supplier Contact List.xlsx,spreadsheet,2024-01-05T13:45:00Z,2024-01-05T17:00:00Z,20480,procurement@company.com
