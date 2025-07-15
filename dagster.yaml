@@ -1,0 +1,20 @@
+scheduler:
+  module: dagster.core.scheduler
+  class: DagsterDaemonScheduler
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
+
+storage:
+  postgres:
+    postgres_db:
+      username: docker
+      password: docker
+      hostname: db
+      db_name: airweave
+      port: 5432

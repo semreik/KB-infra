@@ -1,0 +1,26 @@
+[
+  {
+    "url": "https://example.com/news/1",
+    "title": "TechCorp Inc Faces Supply Chain Disruption",
+    "description": "Major tech supplier TechCorp experiencing significant delays in component deliveries.",
+    "published": "2025-07-15T02:30:00Z",
+    "source": "TechNews",
+    "tone": -0.6
+  },
+  {
+    "url": "https://example.com/news/2",
+    "title": "Industry Analysis: Tech Corporation's Quality Issues",
+    "description": "Recent reports indicate quality control problems at Tech Corporation's main facility.",
+    "published": "2025-07-15T01:15:00Z",
+    "source": "IndustryWatch",
+    "tone": -0.4
+  },
+  {
+    "url": "https://example.com/news/3",
+    "title": "Market Update: TechCorp Stock Movement",
+    "description": "TechCorp shares drop 5% following news of production issues.",
+    "published": "2025-07-14T23:45:00Z",
+    "source": "MarketDaily",
+    "tone": -0.3
+  }
+]

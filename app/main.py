@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +12,12 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.database import Base, get_db
+from app.routes import supplier_risk
 from sources.gmail_source import GmailSource
 from sources.gdrive_source import GDriveSource
 from google.oauth2.credentials import Credentials
@@ -20,9 +27,21 @@ from vectorstore.qdrant import QdrantStore
 # Load environment variables
 load_dotenv()
 
+# Create async engine
+engine = create_async_engine("postgresql+asyncpg://docker:docker@db:5432/airweave")
+async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create tables on startup
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
 app = FastAPI(
     title="Airweave Knowledge Base",
-    description="Semantic search over Gmail and Google Drive content"
+    description="Semantic search over Gmail and Google Drive content",
+    lifespan=lifespan
 )
 
 @app.middleware("http")
@@ -43,6 +62,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add supplier risk router
+app.include_router(supplier_risk.router, prefix="/suppliers")
 
 # Initialize components
 text_processor = TextProcessor(

@@ -1,0 +1,17 @@
+ops:
+  store_risk_score:
+    config:
+      model: "gpt-3.5-turbo"
+    inputs:
+      supplier_id: "SUP-000045"
+      risk_profile: {}
+  analyze_documents:
+    config:
+      model: "gpt-3.5-turbo"
+    inputs:
+      supplier_id: "SUP-000045"
+  fetch_recent_news:
+    config:
+      model: "gpt-3.5-turbo"
+    inputs:
+      supplier_id: "SUP-000045"

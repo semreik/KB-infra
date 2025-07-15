@@ -2,6 +2,11 @@
 from typing import List, Dict, Optional
 import numpy as np
 from qdrant_client import QdrantClient
+
+
+def get_qdrant_client() -> QdrantClient:
+    """Get Qdrant client instance."""
+    return QdrantClient(url="http://qdrant:6333")
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 from processors.text import ProcessedChunk

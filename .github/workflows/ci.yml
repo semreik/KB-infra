@@ -63,23 +63,32 @@ jobs:
     - name: Run integration tests
       if: github.event_name == 'push'
       env:
-        AIRWEAVE_CLOUD_TOKEN: ${{ secrets.AIRWEAVE_CLOUD_TOKEN }}
-        SAP_BASE_URL: ${{ secrets.SAP_BASE_URL }}
-        SAP_CLIENT_ID: ${{ secrets.SAP_CLIENT_ID }}
-        SAP_CLIENT_SECRET: ${{ secrets.SAP_CLIENT_SECRET }}
+        AIRWEAVE_API_URL: ${{ secrets.AIRWEAVE_API_URL || '' }}
+        AIRWEAVE_API_KEY: ${{ secrets.AIRWEAVE_API_KEY || '' }}
+        SAP_BASE_URL: ${{ secrets.SAP_BASE_URL || '' }}
+        SAP_CLIENT_ID: ${{ secrets.SAP_CLIENT_ID || '' }}
+        SAP_CLIENT_SECRET: ${{ secrets.SAP_CLIENT_SECRET || '' }}
       run: |
-        pytest tests/ --runintegration -v
-        
+        if [ -n "$AIRWEAVE_API_KEY" ] && [ -n "$AIRWEAVE_API_URL" ] && [ -n "$SAP_BASE_URL" ] && [ -n "$SAP_CLIENT_ID" ] && [ -n "$SAP_CLIENT_SECRET" ]; then
+          pytest tests/ --runintegration -v
+        else
+          echo "Skipping integration tests - missing required secrets"
+        fi
     - name: Run Airweave smoke test
       env:
-        AIRWEAVE_CLOUD_TOKEN: ${{ secrets.AIRWEAVE_CLOUD_TOKEN }}
+        AIRWEAVE_API_URL: ${{ secrets.AIRWEAVE_API_URL || '' }}
+        AIRWEAVE_API_KEY: ${{ secrets.AIRWEAVE_API_KEY || '' }}
       run: |
+        if [ -n "$AIRWEAVE_API_KEY" ] && [ -n "$AIRWEAVE_API_URL" ]; then
         python -c "
         from airweave import Client
         import os
         
         # Initialize client
-        client = Client(os.getenv('AIRWEAVE_CLOUD_TOKEN'))
+        client = Client(
+            api_url=os.getenv('AIRWEAVE_API_URL'),
+            api_key=os.getenv('AIRWEAVE_API_KEY')
+        )
         
         # Create test collection
         client.create_collection('test')
@@ -103,3 +112,34 @@ jobs:
         # Cleanup
         client.delete_collection('test')
         "
+        else
+          echo "Skipping smoke test - missing Airweave credentials"
+        fi
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}:latest
+          ghcr.io/${{ github.repository }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
