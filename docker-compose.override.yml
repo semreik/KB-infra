@@ -1,0 +1,11 @@
+services:
+  backend:
+    environment:
+      SEED_ORG_NAME: "SpaceFlow Dev"
+      SEED_OWNER_EMAIL: "team.actunator@outlook.com"
+  db:
+    ports:   # only if 5432 is still taken
+      - "55432:5432"
+  redis:
+    ports:   # only if 6379 is still taken
+      - "16379:6379"

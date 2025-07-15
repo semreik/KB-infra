@@ -10,7 +10,7 @@ from app.models.supplier_risk import SupplierRiskProfile
 router = APIRouter()
 
 
-@router.get("/suppliers/{supplier_id}/risk")
+@router.get("/{supplier_id}/risk")
 async def get_supplier_risk(
     supplier_id: str,
     db: AsyncSession = Depends(get_db)
@@ -23,13 +23,19 @@ async def get_supplier_risk(
         .limit(1)
     )
     
-    result = await db.execute(query)
-    profile = result.scalar_one_or_none()
-    
-    if not profile:
+    try:
+        result = await db.execute(query)
+        profile = result.scalar_one_or_none()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No risk profile found for supplier {supplier_id}"
+            )
+        
+        return profile.risk_json
+    except Exception as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"No risk profile found for supplier {supplier_id}"
+            status_code=500,
+            detail=f"Error fetching risk profile: {str(e)}"
         )
-    
-    return profile.risk_json

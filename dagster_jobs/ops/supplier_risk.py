@@ -102,6 +102,14 @@ def store_risk_profile(
     Session = sessionmaker(engine)
     
     with Session() as session:
+        # Create supplier if it doesn't exist
+        from app.models.supplier import Supplier
+        supplier = session.query(Supplier).filter_by(id=supplier_id).first()
+        if not supplier:
+            supplier = Supplier(id=supplier_id, name="Demo Supplier")
+            session.add(supplier)
+            session.flush()
+        
         # Create new risk profile
         profile = SupplierRiskProfile(
             supplier_id=supplier_id,
@@ -118,10 +126,15 @@ def store_risk_profile(
     context.log.info(f"Stored risk profile for supplier {supplier_id}")
 
 
+@op
+def get_supplier_id() -> str:
+    """Get supplier ID for demo."""
+    return "SUP-DEMO"
+
 @job
 def supplier_risk_job():
     """Job to assess and store supplier risk."""
-    supplier_id = "SUP-DEMO"  # For demo purposes
+    supplier_id = get_supplier_id()
     docs = fetch_supplier_docs(supplier_id)
     risk = score_supplier_risk(docs)
     store_risk_profile(supplier_id, risk)

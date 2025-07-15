@@ -1,9 +1,18 @@
 """Risk scoring operations for supplier news."""
+import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Iterable
 
-from dagster import op
-from tools.airweave.sdk import AirweaveClient
+from airweave import AirweaveSDK
+from dagster import op, DagsterError, DynamicOut, DynamicOutput
+
+@op(out=DynamicOut(str))
+def list_supplier_ids(context) -> Iterable[DynamicOutput[str]]:
+    """List active supplier IDs."""
+    test_supplier_id = "SUP-000045"  # Using the test supplier ID from get_supplier_id
+    yield DynamicOutput(test_supplier_id, mapping_key=test_supplier_id)
+
+
 
 @op
 def get_supplier_id() -> str:
@@ -28,124 +37,145 @@ WEIGHTS = {
 
 @op
 def fetch_recent_news(context, supplier_id: str) -> List[Dict]:
-    """Fetch last 24 hours of news for a supplier."""
-    client = AirweaveClient()
-    
-    # Calculate time range
-    end_time = datetime.utcnow()
-    start_time = end_time - timedelta(hours=24)
-    
-    # Query Airweave
-    context.log.info(f"\nQuerying Airweave for supplier {supplier_id}")
-    filters = { 'supplier_id': supplier_id }
-    context.log.info(f"Using filters: {filters}")
-    results = client.query('news', filters=filters)
-    context.log.info(f"Got {len(results)} results from Airweave")
-    context.log.info(f"Results: {results}")
-    
-    # Filter to last 24 hours since mock client doesn't support date filtering
-    # Make sure all datetimes are timezone-aware in UTC
-    start_time = datetime.now(timezone.utc) - timedelta(days=1)
-    end_time = datetime.now(timezone.utc)
-    context.log.info(f"\nFiltering by date range:")
-    context.log.info(f"  Start: {start_time} ({start_time.isoformat()})")
-    context.log.info(f"  End: {end_time} ({end_time.isoformat()})")
-    
-    filtered_results = []
-    for doc in results:
-        metadata = doc.get('metadata', {})
-        published = metadata.get('published')  # Changed from published_date to published
-        context.log.info(f"\nChecking document:")
-        context.log.info(f"  Content: {doc.get('content', '')[:100]}...")
-        context.log.info(f"  Published: {published}")
+    """Fetch last 180 days of news and emails for a supplier."""
+    try:
+        # Initialize Airweave client
+        client = AirweaveClient()
         
-        if not published:
-            context.log.info("  No published date found, skipping")
-            continue
-            
+        # Calculate time range - 180 days
+        since_date = (datetime.now(timezone.utc) - timedelta(days=180)).strftime('%Y-%m-%d')
+        
+        # Query both emails and news
+        context.log.info(f"Querying Airweave for supplier {supplier_id} since {since_date}")
+        
+        filters = {
+            'supplier_id': supplier_id,
+            'since': since_date
+        }
+        
+        # Fetch emails and news in parallel
+        email_results = client.query(collection='emails', filters=filters)
+        news_results = client.query(collection='news', filters=filters)
+        
+        # Combine results
+        all_results = email_results + news_results
+        
+        context.log.info(f"Found {len(all_results)} documents for {supplier_id}:")
+        context.log.info(f"- {len(email_results)} emails")
+        context.log.info(f"- {len(news_results)} news articles")
+        
+        # Log sample of results
+        for doc in all_results[:3]:
+            context.log.info(
+                f"Sample {doc.get('metadata', {}).get('collection')}: "
+                f"{doc.get('content', '')[:100]}..."
+            )
+        
+        return all_results
+        
+    except Exception as e:
+        raise DagsterError(f"Error fetching documents from Airweave: {str(e)}") from e
+
+import requests
+import json
+from typing import Dict, List
+
+@op
+def analyze_documents(context, documents: List[Dict], supplier_id: str) -> List[Dict]:
+    """Analyze documents using LLM scorer service."""
+    scores = []
+    for doc in documents:
         try:
-            # Try to parse the published date - will be timezone-aware due to Z suffix
-            published_dt = datetime.fromisoformat(published.replace('Z', '+00:00'))
-            context.log.info(f"  Published datetime: {published_dt}")
-            
-            # Compare datetime objects - both are now timezone-aware
-            if start_time <= published_dt <= end_time:
-                context.log.info(f"  Date in range, adding to filtered results")
-                filtered_results.append(doc)
-            else:
-                context.log.info(f"  Date out of range")
-        except ValueError as e:
-            context.log.info(f"  Error parsing date: {e}")
+            response = requests.post(
+                "http://api:8080/llm/score",
+                json={
+                    "content": doc['content'],
+                    "metadata": doc.get('metadata', {})
+                }
+            )
+            response.raise_for_status()
+            score = response.json()
+            scores.append({
+                "content": doc['content'],
+                "metadata": doc.get('metadata', {}),
+                "score": score
+            })
+        except Exception as e:
+            context.log.error(f"Error analyzing document: {str(e)}")
             continue
     
-    context.log.info(f"Found {len(filtered_results)} recent news items for {supplier_id}")
-    for doc in filtered_results:
-        context.log.info(f"News item: {doc['content'][:100]} with tone {doc.get('metadata', {}).get('tone')}")
-    return filtered_results
+    return scores
 
 @op
-def compute_risk_score(context, news_items: List[Dict]) -> Tuple[float, str]:
-    """Compute risk score from news items."""
-    context.log.info(f"Computing risk score for {len(news_items)} news items")
-    if not news_items:
-        context.log.info("No news items found, returning 0.0")
-        return 0.0, ""
+async def compute_risk_score(context, analyzed_docs: List[Dict]) -> Dict:
+    """Compute overall risk score from analyzed documents."""
+    if not analyzed_docs:
+        return {
+            "score": 0.0,
+            "explanation": "No documents found",
+            "categories": {
+                "financial": {"score": 0.0, "explanation": "No data"},
+                "compliance": {"score": 0.0, "explanation": "No data"},
+                "reputation": {"score": 0.0, "explanation": "No data"}
+            }
+        }
+        
+    # Calculate weighted average scores
+    total_weight = 0
+    scores = {
+        "financial": 0.0,
+        "compliance": 0.0,
+        "reputation": 0.0
+    }
     
-    now = datetime.utcnow()
-    max_score = 0.0
-    top_snippet = ""
+    for doc in analyzed_docs:
+        score = doc['score']
+        weight = 1.0  # Could add recency-based weighting here
+        total_weight += weight
+        
+        scores["financial"] += score['categories']['financial']['score'] * weight
+        scores["compliance"] += score['categories']['compliance']['score'] * weight
+        scores["reputation"] += score['categories']['reputation']['score'] * weight
     
-    for item in news_items:
-        score = 0.0
-        context.log.info(f"\nProcessing news item: {item}")
-        
-        # Score based on tone
-        # Default to very negative tone for testing
-        metadata = item.get('metadata', {})
-        context.log.info(f"Metadata: {metadata}")
-        
-        tone = float(metadata.get('tone', -1.0))
-        context.log.info(f"Tone score: {tone}")
-        
-        for category, (min_val, max_val, weight) in WEIGHTS['tone'].items():
-            if min_val <= tone <= max_val:
-                score += weight
-                context.log.info(f"Matched tone category {category} with weight {weight}, score now {score}")
-                break
-        
-        # Score based on recency
-        now = datetime.now(timezone.utc)
-        pub_date = datetime.fromisoformat(metadata.get('published', now.isoformat()).replace('Z', '+00:00'))
-        hours_old = (now - pub_date).total_seconds() / 3600
-        context.log.info(f"Published date: {pub_date}, hours old: {hours_old}")
-        
-        for category, (min_hours, max_hours, weight) in WEIGHTS['recency'].items():
-            if min_hours <= hours_old < max_hours:
-                old_score = score
-                score *= weight
-                context.log.info(f"Matched recency category {category} with weight {weight}, score changed from {old_score} to {score}")
-                break
-        
-        context.log.info(f"Final score for this item: {score}")
-        
-        # Update max score and snippet if this is highest scoring
-        if score > max_score:
-            max_score = score
-            top_snippet = item['content'][:500]  # Truncate long content
-            context.log.info(f"New highest score: {max_score} with snippet: {top_snippet[:100]}...")
+    # Normalize scores
+    if total_weight > 0:
+        for category in scores:
+            scores[category] /= total_weight
     
-    context.log.info(f"Computed risk score: {max_score}")
-    return max_score, top_snippet
+    # Calculate overall score (weighted average of categories)
+    category_weights = {
+        "financial": 0.4,
+        "compliance": 0.3,
+        "reputation": 0.3
+    }
+    
+    overall_score = sum(
+        scores[cat] * weight
+        for cat, weight in category_weights.items()
+    )
+    
+    return {
+        "score": overall_score,
+        "explanation": "Weighted average of category scores",
+        "categories": {
+            cat: {
+                "score": scores[cat],
+                "explanation": f"Weighted average of {cat} scores"
+            }
+            for cat in scores
+        }
+    }
 
 @op
-def store_risk_score(context, supplier_id: str, score_and_snippet: Tuple[float, str]):
+def store_risk_score(context, supplier_id: str, risk_profile: Dict):
     """Store risk score in feature store."""
-    score, snippet = score_and_snippet
+    score = risk_profile['score']
+    categories = risk_profile['categories']
     timestamp = datetime.utcnow().isoformat()
     
     # Store in feature store table
     # TODO: Replace with actual feature store implementation
     with open('feature_store.features', 'a') as f:
-        f.write(f"{supplier_id}\t{score}\n")
+        f.write(f"{supplier_id}\t{score}\t{json.dumps(risk_profile)}\n")
     
-    context.log.info(f"Stored risk score {score} for {supplier_id}")
+    context.log.info(f"Stored risk profile for {supplier_id}: {risk_profile}")

@@ -63,27 +63,32 @@ jobs:
     - name: Run integration tests
       if: github.event_name == 'push'
       env:
-        AIRWEAVE_CLOUD_TOKEN: ${{ secrets.AIRWEAVE_CLOUD_TOKEN || '' }}
+        AIRWEAVE_API_URL: ${{ secrets.AIRWEAVE_API_URL || '' }}
+        AIRWEAVE_API_KEY: ${{ secrets.AIRWEAVE_API_KEY || '' }}
         SAP_BASE_URL: ${{ secrets.SAP_BASE_URL || '' }}
         SAP_CLIENT_ID: ${{ secrets.SAP_CLIENT_ID || '' }}
         SAP_CLIENT_SECRET: ${{ secrets.SAP_CLIENT_SECRET || '' }}
       run: |
-        if [ -n "$AIRWEAVE_CLOUD_TOKEN" ] && [ -n "$SAP_BASE_URL" ] && [ -n "$SAP_CLIENT_ID" ] && [ -n "$SAP_CLIENT_SECRET" ]; then
+        if [ -n "$AIRWEAVE_API_KEY" ] && [ -n "$AIRWEAVE_API_URL" ] && [ -n "$SAP_BASE_URL" ] && [ -n "$SAP_CLIENT_ID" ] && [ -n "$SAP_CLIENT_SECRET" ]; then
           pytest tests/ --runintegration -v
         else
           echo "Skipping integration tests - missing required secrets"
         fi
     - name: Run Airweave smoke test
       env:
-        AIRWEAVE_CLOUD_TOKEN: ${{ secrets.AIRWEAVE_CLOUD_TOKEN || '' }}
+        AIRWEAVE_API_URL: ${{ secrets.AIRWEAVE_API_URL || '' }}
+        AIRWEAVE_API_KEY: ${{ secrets.AIRWEAVE_API_KEY || '' }}
       run: |
-        if [ -n "$AIRWEAVE_CLOUD_TOKEN" ]; then
+        if [ -n "$AIRWEAVE_API_KEY" ] && [ -n "$AIRWEAVE_API_URL" ]; then
         python -c "
         from airweave import Client
         import os
         
         # Initialize client
-        client = Client(os.getenv('AIRWEAVE_CLOUD_TOKEN'))
+        client = Client(
+            api_url=os.getenv('AIRWEAVE_API_URL'),
+            api_key=os.getenv('AIRWEAVE_API_KEY')
+        )
         
         # Create test collection
         client.create_collection('test')
@@ -108,7 +113,7 @@ jobs:
         client.delete_collection('test')
         "
         else
-          echo "Skipping smoke test - missing AIRWEAVE_CLOUD_TOKEN"
+          echo "Skipping smoke test - missing Airweave credentials"
         fi
   build:
     needs: test

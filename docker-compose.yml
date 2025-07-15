@@ -58,6 +58,13 @@ services:
       # Redis configuration
       - REDIS_URL=redis://redis:6379
       
+      # Airweave configuration
+      - AIRWEAVE_API_URL=${AIRWEAVE_API_URL}
+      - AIRWEAVE_API_KEY=${AIRWEAVE_API_KEY}
+      
+      # OpenAI configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
       # Processing configuration
       - CHUNK_SIZE=${CHUNK_SIZE:-1000}
       - CHUNK_OVERLAP=${CHUNK_OVERLAP:-200}
@@ -153,6 +160,45 @@ services:
       - ./docker/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
     depends_on:
       - db
+      
+  dagster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: dagster dev -h 0.0.0.0 -p 3002
+    ports:
+      - "3002:3002"
+    volumes:
+      - .:/app
+    environment:
+      # Gmail credentials
+      - GMAIL_CLIENT_ID=${GMAIL_CLIENT_ID}
+      - GMAIL_CLIENT_SECRET=${GMAIL_CLIENT_SECRET}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN}
+      - GMAIL_USER_EMAIL=${GMAIL_USER_EMAIL}
+      
+      # Google Drive credentials
+      - GDRIVE_CLIENT_ID=${GDRIVE_CLIENT_ID}
+      - GDRIVE_CLIENT_SECRET=${GDRIVE_CLIENT_SECRET}
+      - GDRIVE_REFRESH_TOKEN=${GDRIVE_REFRESH_TOKEN}
+      - GDRIVE_FOLDER_ID=${GDRIVE_FOLDER_ID}
+      
+      # Database configuration
+      - DB_USER=docker
+      - DB_PASS=docker
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=airweave
+      
+      # Airweave configuration
+      - AIRWEAVE_API_URL=${AIRWEAVE_API_URL}
+      - AIRWEAVE_API_KEY=${AIRWEAVE_API_KEY}
+      
+      # OpenAI configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - db
+      - redis
 
 volumes:
   qdrant_data:
