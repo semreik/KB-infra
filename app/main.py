@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -17,7 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
-from app.routes import supplier_risk
+from app.routes.supplier_risk import router as supplier_risk_router
+from app.routes.supplier_risk_ui import router as supplier_risk_ui_router
+from app.routes.health import router as health_router
 from sources.gmail_source import GmailSource
 from sources.gdrive_source import GDriveSource
 from google.oauth2.credentials import Credentials
@@ -52,7 +55,14 @@ async def log_requests(request: Request, call_next):
     return response
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Initialize templates
+templates = Jinja2Templates(directory="app/templates")
+
+@app.get("/")
+async def home(request: Request):
+    return templates.TemplateResponse("supplier_risk.html", {"request": request})
 
 # Add CORS middleware
 app.add_middleware(
@@ -63,8 +73,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add supplier risk router
-app.include_router(supplier_risk.router, prefix="/suppliers")
+# Add routers
+app.include_router(health_router, prefix="/health", tags=["health"])
+app.include_router(supplier_risk_router, prefix="/api/supplier_risk", tags=["supplier_risk"])
+app.include_router(supplier_risk_ui_router, prefix="/api/supplier_risk_ui", tags=["supplier_risk_ui"])
+
+# Initialize templates
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/")
+async def home():
+    return templates.TemplateResponse("supplier_risk.html", {"request": {}})
 
 # Initialize components
 text_processor = TextProcessor(

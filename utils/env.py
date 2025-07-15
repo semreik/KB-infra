@@ -2,6 +2,11 @@
 
 import os
 from typing import Optional
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=Path(__file__).parent.parent / '.env')
 
 def get_env_var(key: str, required: bool = True) -> str:
     """Get an environment variable value.
