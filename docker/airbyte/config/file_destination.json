@@ -1,0 +1,10 @@
+{
+  "name": "Landing Zone",
+  "destinationDefinitionId": "local-json",
+  "workspaceId": "default",
+  "connectionConfiguration": {
+    "destination_path": "/landing",
+    "format": "jsonl"
+  },
+  "destinationName": "Local JSON Lines"
+}

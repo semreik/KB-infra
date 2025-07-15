@@ -10,15 +10,22 @@ from typing import Optional, List, Dict, Any
 import mailbox
 import csv
 import tqdm
+import pyarrow.parquet as pq
+import json
 from tools.airweave.sdk import AirweaveClient
+from tools.alias_map import AliasMap
 from prometheus_client import Counter, Histogram, start_http_server
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+from validators.schema import SchemaValidator
+from validators.quality import QualityChecker
 
 # Prometheus metrics
 DOCS_INGESTED = Counter('docs_ingested_total', 'Number of documents ingested')
 INGEST_LATENCY = Histogram('ingest_latency_seconds', 'Time taken to ingest documents')
 
 def load_mbox(path: Path) -> List[Dict[str, Any]]:
-    """Load emails from mbox file."""
+    """Load and validate emails from mbox file."""
     records = []
     mbox = mailbox.mbox(str(path))
     
@@ -45,17 +52,124 @@ def load_mbox(path: Path) -> List[Dict[str, Any]]:
     return records
 
 def load_csv(path: Path) -> List[Dict[str, Any]]:
-    """Load records from CSV file."""
+    """Load and validate records from CSV file."""
     records = []
     with open(path, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
             records.append(row)
-    return records
+    
+    # Determine schema type from headers
+    if 'po_number' in reader.fieldnames:
+        schema_type = 'purchase_order'
+    else:
+        raise ValueError("Unsupported CSV format")
+    
+    # Validate records
+    validated_records = SchemaValidator.validate_batch(records, schema_type)
+    
+    # Check quality
+    quality_issues = QualityChecker.check_batch_quality(validated_records, schema_type)
+    if quality_issues:
+        for idx, issues in quality_issues.items():
+            print(f"Quality issues in record {idx}:", file=sys.stderr)
+            for issue in issues:
+                print(f"  - {issue}", file=sys.stderr)
+    
+    return validated_records
 
 def load_parquet(path: Path) -> List[Dict[str, Any]]:
-    """Load records from Parquet file."""
-    raise NotImplementedError("Parquet support temporarily disabled")
+    """Load and validate records from Parquet file using pyarrow.
+    
+    Args:
+        path: Path to the Parquet file
+        
+    Returns:
+        List of dictionaries containing the records
+    """
+    # Read the Parquet file
+    table = pq.read_table(str(path))
+    
+    # Convert to list of dictionaries
+    records = []
+    for batch in table.to_batches():
+        for i in range(len(batch)):
+            record = {}
+            for col in batch.schema.names:
+                value = batch[col][i].as_py()
+                # Handle null values
+                record[col] = value if value is not None else ''
+            records.append(record)
+    
+    # Determine schema type from column names
+    schema_type = 'purchase_order' if 'po_number' in table.schema.names else 'drive'
+    
+    # Validate records
+    validated_records = SchemaValidator.validate_batch(records, schema_type)
+    
+    # Check quality
+    quality_issues = QualityChecker.check_batch_quality(validated_records, schema_type)
+    if quality_issues:
+        for idx, issues in quality_issues.items():
+            print(f"Quality issues in record {idx}:", file=sys.stderr)
+            for issue in issues:
+                print(f"  - {issue}", file=sys.stderr)
+    
+    return validated_records
+
+def load_jsonl(path: Path) -> List[Dict[str, Any]]:
+    """Load and validate records from JSONL file."""
+    records = []
+    with open(path, 'r') as f:
+        for line in f:
+            records.append(json.loads(line))
+    return records
+
+class GDELTHandler(FileSystemEventHandler):
+    """Watches for new GDELT data files and processes them."""
+    
+    def __init__(self, client: AirweaveClient, alias_map: AliasMap):
+        self.client = client
+        self.alias_map = alias_map
+        
+    def on_created(self, event):
+        if not event.is_directory and event.src_path.endswith('.jsonl'):
+            try:
+                # Load GDELT records
+                records = load_jsonl(Path(event.src_path))
+                
+                # Process each record
+                for record in records:
+                    # Extract article text
+                    text = f"{record.get('title', '')} {record.get('description', '')}"
+                    
+                    # Find matching suppliers
+                    supplier_ids = self.alias_map.find_matches(text)
+                    
+                    if supplier_ids:
+                        # Add to Airweave for each matching supplier
+                        for supplier_id in supplier_ids:
+                            doc = {
+                                'content': text,
+                                'url': record.get('url', ''),
+                                'published_date': record.get('published', ''),
+                                'source': record.get('source', ''),
+                                'supplier_id': supplier_id,
+                                'tone': record.get('tone', 0.0)
+                            }
+                            self.client.add_document(
+                                collection='external_news',
+                                content=doc['content'],
+                                metadata={
+                                    'url': doc['url'],
+                                    'published_date': doc['published_date'],
+                                    'source': doc['source'],
+                                    'supplier_id': doc['supplier_id'],
+                                    'tone': doc['tone']
+                                }
+                            )
+            except Exception as e:
+                print(f"Error processing {event.src_path}: {str(e)}", file=sys.stderr)
 
 def main(args: Optional[list] = None):
     # Start Prometheus metrics server on a random available port

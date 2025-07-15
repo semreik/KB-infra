@@ -1,0 +1,14 @@
+{
+  "name": "GDELT Feed",
+  "sourceDefinitionId": "gdelt-source",
+  "workspaceId": "default",
+  "connectionConfiguration": {
+    "start_date": "2025-07-14",
+    "api_type": "events",
+    "event_type": "mentions",
+    "format": "json",
+    "max_records_per_request": 100,
+    "polling_interval": 900
+  },
+  "sourceName": "GDELT Events API"
+}
