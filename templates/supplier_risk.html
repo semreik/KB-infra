@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Supplier Risk Assessment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .risk-score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #dc3545;
+        }
+        .green {
+            color: #28a745;
+        }
+        .yellow {
+            color: #ffc107;
+        }
+        .red {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Supplier Risk Assessment</h1>
+    <div class="card">
+        <form id="assessmentForm">
+            <div>
+                <label for="supplierEmail">Supplier Email:</label>
+                <input type="email" id="supplierEmail" required>
+            </div>
+            <div>
+                <label for="supplierName">Supplier Name:</label>
+                <input type="text" id="supplierName" required>
+            </div>
+            <button type="submit">Assess Risk</button>
+        </form>
+    </div>
+
+    <div id="results" style="display: none;">
+        <div class="card">
+            <h2>Risk Assessment Results</h2>
+            <div class="risk-score" id="riskScore">Loading...</div>
+        </div>
+
+        <div class="card">
+            <h3>Key Findings</h3>
+            <div id="keyFindings"></div>
+        </div>
+
+        <div class="card">
+            <h3>Recent News</h3>
+            <div id="recentNews"></div>
+        </div>
+
+        <div class="card">
+            <h3>Email Analysis</h3>
+            <div id="emailAnalysis"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const supplierEmail = document.getElementById('supplierEmail').value;
+            const supplierName = document.getElementById('supplierName').value;
+            
+            try {
+                const response = await fetch('/api/supplier_risk/assess', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        supplier_email: supplierEmail,
+                        supplier_name: supplierName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Update UI with results
+                document.getElementById('results').style.display = 'block';
+                
+                // Update risk score
+                const riskScore = document.getElementById('riskScore');
+                riskScore.textContent = `${(data.risk_score * 100).toFixed(1)}% Risk`;
+                riskScore.className = 'risk-score ' + 
+                    (data.risk_score < 0.3 ? 'green' : 
+                     data.risk_score < 0.7 ? 'yellow' : 'red');
+                
+                // Update key findings
+                const keyFindings = document.getElementById('keyFindings');
+                keyFindings.innerHTML = data.key_findings.map(finding => 
+                    `<p>${finding.title}</p>`).join('');
+                
+                // Update recent news
+                const recentNews = document.getElementById('recentNews');
+                recentNews.innerHTML = data.recent_news.map(article => 
+                    `<p>${article.title} (${article.date}) - ${article.sentiment}</p>`).join('');
+                
+                // Update email analysis
+                const emailAnalysis = document.getElementById('emailAnalysis');
+                emailAnalysis.innerHTML = data.email_analysis.map(email => 
+                    `<p>${email.subject} (${email.date}) - ${email.risk_level}</p>`).join('');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error assessing supplier risk. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
